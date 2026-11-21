@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from datetime import date, timedelta
 
 OUTDOOR_WORDS = [
     "outdoor", "open space", "open area", "sit out", "sitout", "sit-out", "terrace",
@@ -99,3 +100,54 @@ def locality_group(name: str, config: dict) -> str:
         if name in config["localities"][group]:
             return group
     return "other"
+
+
+MONTHS = {m: i for i, m in enumerate(
+    ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+
+
+def parse_posted_date(text: str, today: date | None = None) -> str:
+    """'Posted on 18 Nov 2026', 'Updated: Nov 19', '2 days ago', 'today', '2026-11-18' -> ISO date or ''."""
+    if not text:
+        return ""
+    today = today or date.today()
+    t = str(text).lower()
+    m = re.search(r"(\d{4})-(\d{2})-(\d{2})", t)
+    if m:
+        return m.group(0)
+    m = re.search(r"\b(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})\b", t)   # Indian dd/mm/yyyy
+    if m:
+        d, mo, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
+        y += 2000 if y < 100 else 0
+        try:
+            return date(y, mo, d).isoformat()
+        except ValueError:
+            pass
+    m = (re.search(r"\b(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]{3})[a-z]*,?\s*(\d{4})?", t)
+         or re.search(r"\b([a-z]{3})[a-z]*\s+(\d{1,2})(?:st|nd|rd|th)?,?\s*(\d{4})?", t))
+    if m:
+        a, b, y = m.groups()
+        day, mon = (a, b) if a.isdigit() else (b, a)
+        if mon[:3] in MONTHS:
+            year = int(y) if y else today.year
+            try:
+                d = date(year, MONTHS[mon[:3]], int(day))
+                if not y and d > today:  # "Dec 30" seen in January means last year
+                    d = d.replace(year=year - 1)
+                return d.isoformat()
+            except ValueError:
+                pass
+    if "today" in t or "just now" in t or re.search(r"\d+\s*(hour|hr|min)", t):
+        return today.isoformat()
+    if "yesterday" in t:
+        return (today - timedelta(days=1)).isoformat()
+    m = re.search(r"(\d+)\s*(day|week|month)s?\s*ago", t)
+    if m:
+        n = int(m.group(1)) * {"day": 1, "week": 7, "month": 30}[m.group(2)]
+        return (today - timedelta(days=n)).isoformat()
+    return ""
+
+
+def find_posted_in_text(text: str) -> str:
+    m = re.search(r"(?:posted|updated|listed|added)\s*(?:on|:)?\s*([^\n|]{0,30})", text, re.I)
+    return parse_posted_date(m.group(1)) if m else ""

@@ -10,6 +10,7 @@ shortlist of at least 10 options.
 | Rent | ₹20,000 to ₹60,000 a month (sweet spot ₹25k to ₹45k) |
 | Size | 500 sqft or more (ideal 500 to 900) |
 | Outdoor or sit-out space | Preferred, worth 15 points |
+| Posted or updated | On or after 17 Nov 2026 (`min_posted_date`) |
 
 All of these settings live in `config.json`.
 
@@ -64,9 +65,31 @@ python -m property_finder add-text listing.txt
 python -m property_finder add-url "https://…"
 ```
 
-**Automatic daily run.** `.github/workflows/daily-property-search.yml` runs every day at 08:47 IST and
-commits the new report to the repo. Once this branch is merged to the default branch, it can also be
-run by hand from the Actions tab.
+## 24x7 alerts
+
+`.github/workflows/property-search.yml` runs **every 30 minutes, day and night**. Each run:
+1. reads new portal alert emails in your alerts inbox (MagicBricks, NoBroker, 99acres, Housing)
+2. fetches the URLs in `data/watch_urls.txt` and reads `data/inbox/`
+3. drops anything posted or updated before `min_posted_date` (17 Nov)
+4. scores everything and updates `reports/latest.html`
+5. **alerts you once per shop** when a new *Full match* scores 60 or more and doesn't clearly lack
+   outdoor space. Listings with an unknown posted date go in the report but don't trigger an alert.
+
+**One-time setup.** All of these go in GitHub → repo → Settings → Secrets and variables → Actions:
+
+| Secret | What it is |
+|---|---|
+| `ALERT_IMAP_HOST`, `ALERT_IMAP_USER`, `ALERT_IMAP_PASSWORD` | The inbox that receives portal alerts, e.g. `imap.gmail.com` with a Gmail **app password** |
+| `NOTIFY_SMTP_HOST`, `NOTIFY_SMTP_PORT`, `NOTIFY_SMTP_USER`, `NOTIFY_SMTP_PASSWORD`, `NOTIFY_EMAIL_TO` | Sends the alert emails, e.g. `smtp.gmail.com` and `587` |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Optional: instant phone messages through a Telegram bot |
+
+Then, on MagicBricks and NoBroker, save a search per area and set alerts to **instant** (or the
+fastest option offered), sent to the alerts inbox.
+
+**How fast.** A new listing reaches you within (portal alert delay) + up to 30 minutes. Scheduled runs
+only fire from the repo's default branch. A 30-minute schedule uses about 1,500 Actions minutes a
+month, which is within GitHub's free 2,000 for private repos. A public repo has no limit, so you can
+switch to `*/15`.
 
 No installs are needed: plain Python 3.10 or newer. Run the tests with `python -m unittest discover -s tests`.
 Files in `examples/` are made-up sample data for the tests and are never used in real reports.

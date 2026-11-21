@@ -18,8 +18,8 @@ import urllib.request
 from pathlib import Path
 
 from .models import Listing
-from .parse import (detect_floor, detect_outdoor, find_area_in_text, find_rent_in_text,
-                    match_locality, parse_area, parse_money)
+from .parse import (detect_floor, detect_outdoor, find_area_in_text, find_posted_in_text, find_rent_in_text,
+                    match_locality, parse_area, parse_money, parse_posted_date)
 
 # Column names seen in portal exports / spreadsheets -> our field names.
 HEADER_MAP = {
@@ -33,6 +33,8 @@ HEADER_MAP = {
     "floor": "floor", "outdoor": "outdoor", "outdoor area": "outdoor", "open space": "outdoor",
     "description": "description", "details": "description", "notes": "description", "amenities": "description",
     "url": "url", "link": "url", "listing url": "url",
+    "posted": "posted_date", "posted on": "posted_date", "posted_date": "posted_date", "date": "posted_date",
+    "updated": "posted_date", "updated on": "posted_date", "last updated": "posted_date", "listed on": "posted_date",
     "source": "source", "portal": "source", "contact": "contact", "owner": "contact", "phone": "contact",
 }
 
@@ -64,6 +66,7 @@ def from_record(rec: dict, config: dict, source: str = "") -> Listing:
         deposit=parse_money(data.get("deposit")),
         floor=str(data.get("floor", "")),
         outdoor=_truthy(data.get("outdoor")),
+        posted_date=parse_posted_date(str(data.get("posted_date", ""))),
     )
     blob = " ".join([str(data.get("locality", "")), lst.title, lst.address, lst.description])
     lst.locality = match_locality(blob, config) or str(data.get("locality", "")).strip().title()
@@ -74,6 +77,8 @@ def from_record(rec: dict, config: dict, source: str = "") -> Listing:
     if lst.outdoor is None:
         lst.outdoor = detect_outdoor(blob)
     lst.floor = detect_floor(lst.floor + " floor") if lst.floor else detect_floor(blob)
+    if not lst.posted_date:
+        lst.posted_date = find_posted_in_text(blob)
     if not lst.source and lst.url:
         lst.source = _source_from_url(lst.url)
     return lst
@@ -153,6 +158,7 @@ def from_url(url: str, config: dict) -> Listing:
     desc = html.unescape(meta.get("og:description") or meta.get("description") or "")
     rec = {"title": title.strip(), "description": desc, "url": url, "source": _source_from_url(url)}
     for b in _jsonld_blocks(page):
+        rec.setdefault("posted_date", b.get("datePosted") or b.get("dateModified") or b.get("datePublished"))
         offers = b.get("offers") if isinstance(b.get("offers"), dict) else {}
         rec.setdefault("rent", b.get("price") or offers.get("price"))
         size = b.get("floorSize")

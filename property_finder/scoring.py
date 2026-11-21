@@ -132,6 +132,9 @@ def score(listing: Listing, cfg: dict) -> Scored:
         sales_needed = listing.rent / HEALTHY_RENT_SHARE
         s.orders_per_day_needed = round(sales_needed / OPEN_DAYS / AVG_ORDER_VALUE)
 
+    if not listing.posted_date:
+        s.warnings.append(f"Posted date unknown. Check it was posted after {cfg.get('min_posted_date', 'the cutoff')}.")
+
     penalty = 0
     for w in BAD_WORDS:
         if w in t:

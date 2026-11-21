@@ -13,7 +13,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from . import collectors, links as links_mod, report, scoring
+from . import collectors, links as links_mod, mailbox, notify, report, scoring
 from .store import Store
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,12 +35,13 @@ def cmd_run(args, cfg) -> int:
         web = collectors.load_watch_urls(data / "watch_urls.txt", cfg)
         print(f"  watch URLs : {len(web)}")
         found += web
+        found += mailbox.fetch_alert_listings(cfg, since=cfg.get("min_posted_date", today))
 
     new = store.upsert(found, today)
     new_keys = {l.key for l in new}
-    store.save()
 
-    active = store.active(today)
+    min_posted = cfg.get("min_posted_date", "")
+    active = [l for l in store.active(today) if not (min_posted and l.posted_date and l.posted_date < min_posted)]
     for l in active:
         l.extra["new"] = l.key in new_keys or l.first_seen == today
     ranked = scoring.rank(active, cfg)
@@ -59,6 +60,19 @@ def cmd_run(args, cfg) -> int:
     meta = {"concept": cfg["concept"], "date": today, "total": len(active), "matches": matches,
             "new": len(new_keys), "shortfall": shortfall.strip(),
             "rent_min": cfg["rent"]["min"], "rent_max": cfg["rent"]["max"], "area_min": cfg["area_sqft"]["min"]}
+
+    if args.notify:
+        a = cfg.get("alerts", {})
+        fresh = [s for s in ranked
+                 if not s.listing.extra.get("notified")
+                 and s.tier in a.get("tiers", ["match"])
+                 and s.score >= a.get("min_score", 60)
+                 and not (a.get("skip_if_no_outdoor") and s.listing.outdoor is False)
+                 and s.listing.posted_date and s.listing.posted_date >= min_posted]
+        if fresh and notify.send(fresh, cfg["concept"]):
+            for s in fresh:
+                s.listing.extra["notified"] = today
+    store.save()
 
     out = Path(args.reports)
     day_dir = out / today
@@ -99,6 +113,7 @@ def main(argv=None) -> int:
     r = sub.add_parser("run")
     r.add_argument("--date", help="override today's date (YYYY-MM-DD)")
     r.add_argument("--offline", action="store_true", help="skip fetching watch URLs")
+    r.add_argument("--notify", action="store_true", help="send email/Telegram alerts for new matches")
     r.add_argument("--strict", action="store_true", help="exit 2 if fewer than min_results listings")
     t = sub.add_parser("add-text")
     t.add_argument("file", help="text file with the listing, or - for stdin")

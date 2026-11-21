@@ -18,11 +18,11 @@ def write_csv(rows: list[Scored], path: Path):
     with path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["rank", "score", "tier", "new", "locality", "title", "rent", "area_sqft", "rent_psf",
-                    "outdoor", "floor", "orders_per_day_needed", "url", "contact", "why", "watch_out"])
+                    "outdoor", "floor", "posted_date", "orders_per_day_needed", "url", "contact", "why", "watch_out"])
         for i, s in enumerate(rows, 1):
             l = s.listing
             w.writerow([i, s.score, s.tier, l.extra.get("new", False), l.locality, l.title, l.rent, l.area_sqft,
-                        s.rent_psf, l.outdoor, l.floor, s.orders_per_day_needed, l.url, l.contact,
+                        s.rent_psf, l.outdoor, l.floor, l.posted_date, s.orders_per_day_needed, l.url, l.contact,
                         "; ".join(s.reasons), "; ".join(s.warnings)])
 
 
@@ -93,7 +93,7 @@ def write_html(rows: list[Scored], meta: dict, links: dict, path: Path):
         tags += [f"<span class=tag>{e(x)}</span>" for x in [
             l.locality or "area ?", _money(l.rent) + "/mo", f"{l.area_sqft or '?'} sqft",
             f"₹{s.rent_psf}/sqft" if s.rent_psf else "", "Outdoor ✓" if l.outdoor else "",
-            f"floor: {l.floor}" if l.floor else "", f"~{s.orders_per_day_needed} orders/day to cover rent"
+            f"floor: {l.floor}" if l.floor else "", f"posted {l.posted_date}" if l.posted_date else "", f"~{s.orders_per_day_needed} orders/day to cover rent"
             if s.orders_per_day_needed else "", l.source, l.contact] if x]
         items = "".join(f"<li>{e(r)}</li>" for r in s.reasons) + "".join(
             f"<li class=w>{e(w)}</li>" for w in s.warnings)

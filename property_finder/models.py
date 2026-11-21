@@ -19,6 +19,7 @@ class Listing:
     url: str = ""
     source: str = ""              # magicbricks / nobroker / manual / ...
     contact: str = ""
+    posted_date: str = ""         # ISO date the listing was posted/updated on the portal ("" = unknown)
     first_seen: str = ""
     last_seen: str = ""
     extra: dict = field(default_factory=dict)
