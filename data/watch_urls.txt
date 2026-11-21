@@ -1,0 +1,3 @@
+# One public listing URL per line. Fetched on every daily run, with a 3 second gap between requests.
+# Paste the URLs of shops you like from MagicBricks, NoBroker, 99acres or Housing here.
+# Lines starting with # are ignored.
