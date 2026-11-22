@@ -45,7 +45,7 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          if [ "${{ inputs.send_test_email }}" = "true" ]; then python -m property_finder test-notify; fi
+          if [ "${{ inputs.send_test_email }}" = "true" ]; then python -m property_finder test-notify || echo "::warning::Test alert could not be sent, see the lines above"; fi
           python -m property_finder run --notify --locate
       - name: Save state and report (only when something changed)
         run: |
