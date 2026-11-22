@@ -36,7 +36,10 @@ def cmd_run(args, cfg) -> int:
         web = collectors.load_watch_urls(data / "watch_urls.txt", cfg)
         print(f"  watch URLs : {len(web)}")
         found += web
-        found += mailbox.fetch_alert_listings(cfg, since=cfg.get("min_posted_date", today))
+        try:
+            found += mailbox.fetch_alert_listings(cfg, since=cfg.get("min_posted_date", today))
+        except Exception as e:
+            print(f"  ! mailbox: unexpected error, skipped this time: {e}")
 
     new = store.upsert(found, today)
     new_keys = {l.key for l in new}
@@ -137,6 +140,7 @@ def main(argv=None) -> int:
     u = sub.add_parser("add-url")
     u.add_argument("url")
     sub.add_parser("links")
+    sub.add_parser("test-notify", help="send a test alert to check email/Telegram setup")
     args = p.parse_args(argv)
     cfg = load_config(Path(args.config))
 
@@ -147,6 +151,12 @@ def main(argv=None) -> int:
         _save_to_inbox(collectors.from_text(text, cfg), Path(args.data))
     elif args.cmd == "add-url":
         _save_to_inbox(collectors.from_url(args.url, cfg), Path(args.data))
+    elif args.cmd == "test-notify":
+        from .models import Listing
+        demo = Listing(title="TEST ALERT: your Chilli Theory property finder is connected", locality="Miyapur",
+                       rent=40000, area_sqft=600, outdoor=True, floor="ground")
+        sent = notify.send([scoring.score(demo, cfg)], cfg["concept"] + " (test)")
+        return 0 if sent else 1
     elif args.cmd == "links":
         for loc, ls in links_mod.search_links(cfg).items():
             print(f"\n{loc}")
