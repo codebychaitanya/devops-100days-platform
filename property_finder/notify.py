@@ -33,6 +33,18 @@ def message(matches: list[Scored], concept: str) -> tuple[str, str]:
     return subject, body + "\n\nFull report: reports/latest.html"
 
 
+def _smtp_send(host: str, port: int, user: str, pw: str, msg) -> None:
+    if port == 465:
+        with smtplib.SMTP_SSL(host, port, timeout=30) as s:
+            s.login(user, pw)
+            s.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port, timeout=30) as s:
+            s.starttls()
+            s.login(user, pw)
+            s.send_message(msg)
+
+
 def send(matches: list[Scored], concept: str, log=print) -> int:
     if not matches:
         return 0
@@ -45,18 +57,27 @@ def send(matches: list[Scored], concept: str, log=print) -> int:
         port = int(clean_secret("NOTIFY_SMTP_PORT") or "587")
         msg = MIMEText(body, "plain", "utf-8")
         msg["Subject"], msg["From"], msg["To"] = subject, user, to
-        try:
-            with smtplib.SMTP(host, port, timeout=30) as s:
-                s.starttls()
-                s.login(user, pw)
-                s.send_message(msg)
-            sent += 1
-            log("  notified by email")
-        except smtplib.SMTPAuthenticationError as e:
-            log(f"  ! email: Gmail refused the login ({e.smtp_code}). Check NOTIFY_SMTP_USER and that "
-                f"NOTIFY_SMTP_PASSWORD is the 16-character app password.")
-        except (OSError, smtplib.SMTPException) as e:
-            log(f"  ! email: could not send ({e}). {describe_host('NOTIFY_SMTP_HOST', host, 'smtp.gmail.com')}")
+        # Gmail accepts 587 (STARTTLS) and 465 (SSL). Try the configured one first, then the other.
+        attempts = [port] + [p for p in (587, 465) if p != port]
+        last_err = None
+        for p in attempts:
+            try:
+                _smtp_send(host, p, user, pw, msg)
+                sent += 1
+                log(f"  notified by email (port {'configured' if p == port else 'fallback'})")
+                last_err = None
+                break
+            except smtplib.SMTPAuthenticationError as e:
+                last_err = None
+                log(f"  ! email: Gmail refused the login ({e.smtp_code}). Check NOTIFY_SMTP_USER is the full "
+                    f"address and NOTIFY_SMTP_PASSWORD is the 16-character app password.")
+                break
+            except (OSError, smtplib.SMTPException) as e:
+                last_err = e
+        if last_err is not None:
+            log(f"  ! email: could not send ({last_err}). "
+                f"{describe_host('NOTIFY_SMTP_HOST', host, 'smtp.gmail.com')}; "
+                f"NOTIFY_SMTP_PORT is {'587' if port == 587 else ('465' if port == 465 else 'neither 587 nor 465')}")
     if env.get("TELEGRAM_BOT_TOKEN") and env.get("TELEGRAM_CHAT_ID"):
         data = urllib.parse.urlencode({"chat_id": env["TELEGRAM_CHAT_ID"], "text": f"{subject}\n\n{body}"[:4000],
                                        "disable_web_page_preview": "true"}).encode()
