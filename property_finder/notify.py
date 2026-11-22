@@ -12,6 +12,7 @@ import urllib.parse
 import urllib.request
 from email.mime.text import MIMEText
 
+from .mailbox import clean_secret, describe_host
 from .scoring import Scored
 
 
@@ -38,15 +39,24 @@ def send(matches: list[Scored], concept: str, log=print) -> int:
     subject, body = message(matches, concept)
     sent = 0
     env = os.environ
-    if env.get("NOTIFY_SMTP_HOST") and env.get("NOTIFY_EMAIL_TO"):
+    host, to = clean_secret("NOTIFY_SMTP_HOST").lower(), clean_secret("NOTIFY_EMAIL_TO")
+    if host and to:
+        user, pw = clean_secret("NOTIFY_SMTP_USER"), clean_secret("NOTIFY_SMTP_PASSWORD")
+        port = int(clean_secret("NOTIFY_SMTP_PORT") or "587")
         msg = MIMEText(body, "plain", "utf-8")
-        msg["Subject"], msg["From"], msg["To"] = subject, env.get("NOTIFY_SMTP_USER", ""), env["NOTIFY_EMAIL_TO"]
-        with smtplib.SMTP(env["NOTIFY_SMTP_HOST"], int(env.get("NOTIFY_SMTP_PORT", "587")), timeout=30) as s:
-            s.starttls()
-            s.login(env["NOTIFY_SMTP_USER"], env["NOTIFY_SMTP_PASSWORD"])
-            s.send_message(msg)
-        sent += 1
-        log("  notified by email")
+        msg["Subject"], msg["From"], msg["To"] = subject, user, to
+        try:
+            with smtplib.SMTP(host, port, timeout=30) as s:
+                s.starttls()
+                s.login(user, pw)
+                s.send_message(msg)
+            sent += 1
+            log("  notified by email")
+        except smtplib.SMTPAuthenticationError as e:
+            log(f"  ! email: Gmail refused the login ({e.smtp_code}). Check NOTIFY_SMTP_USER and that "
+                f"NOTIFY_SMTP_PASSWORD is the 16-character app password.")
+        except (OSError, smtplib.SMTPException) as e:
+            log(f"  ! email: could not send ({e}). {describe_host('NOTIFY_SMTP_HOST', host, 'smtp.gmail.com')}")
     if env.get("TELEGRAM_BOT_TOKEN") and env.get("TELEGRAM_CHAT_ID"):
         data = urllib.parse.urlencode({"chat_id": env["TELEGRAM_CHAT_ID"], "text": f"{subject}\n\n{body}"[:4000],
                                        "disable_web_page_preview": "true"}).encode()

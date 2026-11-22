@@ -3,7 +3,12 @@ name: Property search (24x7)
 on:
   schedule:
     - cron: "*/30 * * * *"   # every 30 minutes, all day. GitHub may delay scheduled runs by a few minutes.
-  workflow_dispatch: {}      # also runnable by hand from the Actions tab
+  workflow_dispatch:         # also runnable by hand from the Actions tab
+    inputs:
+      send_test_email:
+        description: "Send a test alert to check the email setup"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -39,7 +44,9 @@ jobs:
           NOTIFY_EMAIL_TO: ${{ secrets.NOTIFY_EMAIL_TO }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -m property_finder run --notify --locate
+        run: |
+          if [ "${{ inputs.send_test_email }}" = "true" ]; then python -m property_finder test-notify; fi
+          python -m property_finder run --notify --locate
       - name: Save state and report (only when something changed)
         run: |
           git config user.name "property-finder-bot"
