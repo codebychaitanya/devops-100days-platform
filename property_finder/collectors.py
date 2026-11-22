@@ -35,6 +35,7 @@ HEADER_MAP = {
     "url": "url", "link": "url", "listing url": "url",
     "posted": "posted_date", "posted on": "posted_date", "posted_date": "posted_date", "date": "posted_date",
     "updated": "posted_date", "updated on": "posted_date", "last updated": "posted_date", "listed on": "posted_date",
+    "photos": "photos", "images": "photos", "photo urls": "photos", "image urls": "photos", "pictures": "photos",
     "source": "source", "portal": "source", "contact": "contact", "owner": "contact", "phone": "contact",
 }
 
@@ -69,6 +70,11 @@ def from_record(rec: dict, config: dict, source: str = "") -> Listing:
         posted_date=parse_posted_date(str(data.get("posted_date", ""))),
     )
     blob = " ".join([str(data.get("locality", "")), lst.title, lst.address, lst.description])
+    photos = data.get("photos")
+    if isinstance(photos, str):
+        photos = re.findall(r"https?://[^\s,|]+", photos)
+    if photos:
+        lst.extra["photos"] = list(dict.fromkeys(photos))
     lst.locality = match_locality(blob, config) or str(data.get("locality", "")).strip().title()
     if lst.rent is None:
         lst.rent = find_rent_in_text(blob)
@@ -151,6 +157,25 @@ def _jsonld_blocks(page: str) -> list[dict]:
     return blocks
 
 
+IMG_SKIP = re.compile(r"logo|icon|sprite|avatar|banner|badge|pixel|tracking|placeholder|\.svg", re.I)
+
+
+def photo_urls(page: str, meta: dict | None = None) -> list[str]:
+    """Listing photos from og:image, JSON-LD image fields and large <img> tags."""
+    urls = []
+    if meta and meta.get("og:image"):
+        urls.append(meta["og:image"])
+    for b in _jsonld_blocks(page):
+        img = b.get("image")
+        for i in (img if isinstance(img, list) else [img]):
+            if isinstance(i, str):
+                urls.append(i)
+            elif isinstance(i, dict) and i.get("url"):
+                urls.append(i["url"])
+    urls += re.findall(r'<img[^>]+(?:data-src|src)="(https?://[^"]+\.(?:jpe?g|png|webp)[^"]*)"', page, re.I)
+    return [html.unescape(u) for u in dict.fromkeys(urls) if not IMG_SKIP.search(u)][:12]
+
+
 def from_url(url: str, config: dict) -> Listing:
     page = _get(url)
     meta = dict(re.findall(r'<meta[^>]+(?:property|name)="([^"]+)"[^>]+content="([^"]*)"', page, re.I))
@@ -167,6 +192,7 @@ def from_url(url: str, config: dict) -> Listing:
         addr = b.get("address")
         if isinstance(addr, dict):
             rec.setdefault("address", " ".join(str(v) for v in addr.values() if isinstance(v, str)))
+    rec["photos"] = photo_urls(page, meta)
     body = re.sub(r"<[^>]+>", " ", re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", page, flags=re.S | re.I))
     rec["description"] = (desc + " " + html.unescape(re.sub(r"\s+", " ", body))[:3000]).strip()
     rec = {k: v for k, v in rec.items() if v not in (None, "")}

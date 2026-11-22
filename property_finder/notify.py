@@ -20,7 +20,10 @@ def _line(s: Scored) -> str:
     bits = [f"{s.score}/100", l.locality or "?", f"₹{l.rent:,}" if l.rent else "rent ?",
             f"{l.area_sqft} sqft" if l.area_sqft else "", "outdoor ✓" if l.outdoor else "",
             "ground floor" if l.floor == "ground" else "", f"posted {l.posted_date}" if l.posted_date else ""]
-    return f"{l.title[:80]}\n  " + " · ".join(b for b in bits if b) + (f"\n  {l.url}" if l.url else "")
+    g = l.extra.get("location_guess")
+    where = (f"\n  📍 likely: {g['likely_location'][:90]} ({g['confidence']} confidence) {g.get('map', '')}"
+             if g else "")
+    return f"{l.title[:80]}\n  " + " · ".join(b for b in bits if b) + where + (f"\n  {l.url}" if l.url else "")
 
 
 def message(matches: list[Scored], concept: str) -> tuple[str, str]:

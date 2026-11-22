@@ -6,7 +6,9 @@ from pathlib import Path
 
 from datetime import date
 
-from property_finder import cli, collectors, mailbox, notify, scoring
+from types import SimpleNamespace
+
+from property_finder import cli, collectors, locate, mailbox, notify, scoring
 from property_finder.parse import parse_area, parse_money, parse_posted_date
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -69,6 +71,71 @@ class DateAndAlertTests(unittest.TestCase):
         self.assertEqual(sent, [["New shop"]])   # old one filtered out; no repeat alert
         csv_text = (work / "reports" / "2026-11-21" / "all_ranked.csv").read_text()
         self.assertNotIn("Old shop", csv_text)
+
+
+class FakeClient:
+    """Stands in for anthropic.Anthropic(); records the request and returns a canned answer."""
+    def __init__(self, answer):
+        self.calls = []
+        create = lambda **kw: self.calls.append(kw) or SimpleNamespace(
+            stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(answer))])
+        self.beta = SimpleNamespace(messages=SimpleNamespace(create=create))
+
+
+ANSWER = {
+    "visible_text": ["Ratnadeep Supermarket", "P-1021"], "landmarks": ["Miyapur metro line overhead"],
+    "frontage": "10 ft paved setback, then main road", "outdoor_space": "visible",
+    "outdoor_space_notes": "About 10 x 20 ft private setback in front of the shutter",
+    "likely_location": "Near Ratnadeep Supermarket, Miyapur X Roads",
+    "search_queries": ["Ratnadeep Supermarket Miyapur Hyderabad"], "confidence": "medium", "reasoning": "signboard",
+}
+
+
+class LocateTests(unittest.TestCase):
+    def setUp(self):
+        self._dl, self._geo = locate._download, locate.geocode
+        locate._download = lambda url: ("image/jpeg", "AAAA")
+        locate.geocode = lambda q: {"lat": 17.4969, "lon": 78.3578, "display_name": "Ratnadeep, Miyapur", "query": q}
+
+    def tearDown(self):
+        locate._download, locate.geocode = self._dl, self._geo
+
+    def test_photos_collected_from_page(self):
+        page = ('<meta property="og:image" content="https://img.example.com/shop1.jpg">'
+                '<img src="https://img.example.com/shop2.jpg"><img src="https://x.com/logo.png">')
+        self.assertEqual(collectors.photo_urls(page, {"og:image": "https://img.example.com/shop1.jpg"}),
+                         ["https://img.example.com/shop1.jpg", "https://img.example.com/shop2.jpg"])
+
+    def test_locate_fills_guess_and_outdoor(self):
+        l = collectors.from_record({"Title": "Shop for rent", "Locality": "Miyapur", "Rent": "40000",
+                                    "Area": "600", "Photos": "https://a/1.jpg | https://a/2.jpg"}, CFG)
+        self.assertTrue(locate.needs_locating(l))
+        client = FakeClient(ANSWER)
+        g = locate.locate(l, client=client, log=lambda *_: None)
+        self.assertEqual(g["confidence"], "medium")
+        self.assertIn("17.4969,78.3578", g["map"])
+        self.assertTrue(l.outdoor)                       # open space seen in photos
+        self.assertFalse(locate.needs_locating(l))       # not analysed twice
+        req = client.calls[0]
+        self.assertEqual(req["model"], "claude-opus-5-5")
+        self.assertEqual(sum(1 for b in req["messages"][0]["content"] if b["type"] == "image"), 2)
+
+    def test_no_photos_means_no_api_call(self):
+        l = collectors.from_record({"Title": "Shop", "Locality": "KPHB"}, CFG)
+        self.assertFalse(locate.needs_locating(l))
+        client = FakeClient(ANSWER)
+        self.assertIsNone(locate.locate(l, client=client, log=lambda *_: None))
+        self.assertEqual(client.calls, [])
+
+    def test_guess_survives_reimport(self):
+        from property_finder.store import Store
+        st = Store(Path(tempfile.mkdtemp()) / "l.json")
+        l = collectors.from_record({"Title": "Shop", "Locality": "KPHB", "URL": "https://e.com/9"}, CFG)
+        st.upsert([l], "2026-11-21")
+        l.extra["location_guess"] = ANSWER
+        again = collectors.from_record({"Title": "Shop", "Locality": "KPHB", "URL": "https://e.com/9"}, CFG)
+        st.upsert([again], "2026-11-22")
+        self.assertEqual(st.items[l.key].extra["location_guess"], ANSWER)
 
 
 class ScoringTests(unittest.TestCase):

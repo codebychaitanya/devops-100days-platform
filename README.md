@@ -65,6 +65,27 @@ python -m property_finder add-text listing.txt
 python -m property_finder add-url "https://…"
 ```
 
+## Finding hidden addresses from photos
+
+Many listings hide the exact address. With `--locate` (switched on in the scheduled job), every
+shortlisted listing that has photos but a vague address is sent to Claude (Opus 5.5 vision), which
+reads the photos for:
+- signboards of neighbouring shops, banks and apartment or building names
+- **Hyderabad Metro pillar numbers** (e.g. `P-1021`), which narrow the spot to about a 50 m stretch
+- junctions, flyovers, bus stops and the skyline
+- **the space in front of the shop**: private setback suitable for tables, or only the public footpath
+
+Claude returns its clues, a likely location, a confidence level (high, medium or low) and map search
+queries. Each query is checked against OpenStreetMap to get a map pin. The report and alerts then show
+"📍 Estimated location … open map". If the photos clearly show open space in front, the listing is
+counted as having outdoor space.
+
+- It is an **estimate**. Confirm with the owner or broker before visiting or paying anything.
+- Each listing is analysed once, with a maximum of 10 per run (`--locate-limit`). The cost is roughly a
+  few rupees per listing for 6 photos.
+- It needs the `ANTHROPIC_API_KEY` secret. Without it, this step is skipped.
+- Photos come from listing pages, alert emails, or a `Photos` column (URLs) in inbox CSVs.
+
 ## 24x7 alerts
 
 `.github/workflows/property-search.yml` runs **every 30 minutes, day and night**. Each run:
@@ -81,6 +102,7 @@ python -m property_finder add-url "https://…"
 |---|---|
 | `ALERT_IMAP_HOST`, `ALERT_IMAP_USER`, `ALERT_IMAP_PASSWORD` | The inbox that receives portal alerts, e.g. `imap.gmail.com` with a Gmail **app password** |
 | `NOTIFY_SMTP_HOST`, `NOTIFY_SMTP_PORT`, `NOTIFY_SMTP_USER`, `NOTIFY_SMTP_PASSWORD`, `NOTIFY_EMAIL_TO` | Sends the alert emails, e.g. `smtp.gmail.com` and `587` |
+| `ANTHROPIC_API_KEY` | For estimating hidden addresses from photos (console.anthropic.com) |
 | `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | Optional: instant phone messages through a Telegram bot |
 
 Then, on MagicBricks and NoBroker, save a search per area and set alerts to **instant** (or the
@@ -91,7 +113,7 @@ only fire from the repo's default branch. A 30-minute schedule uses about 1,500 
 month, which is within GitHub's free 2,000 for private repos. A public repo has no limit, so you can
 switch to `*/15`.
 
-No installs are needed: plain Python 3.10 or newer. Run the tests with `python -m unittest discover -s tests`.
+Plain Python 3.10 or newer. Only the photo locator needs `pip install -r requirements.txt`. Run the tests with `python -m unittest discover -s tests`.
 Files in `examples/` are made-up sample data for the tests and are never used in real reports.
 
 ## About your premium accounts

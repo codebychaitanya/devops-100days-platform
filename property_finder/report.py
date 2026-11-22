@@ -18,11 +18,13 @@ def write_csv(rows: list[Scored], path: Path):
     with path.open("w", newline="", encoding="utf-8") as f:
         w = csv.writer(f)
         w.writerow(["rank", "score", "tier", "new", "locality", "title", "rent", "area_sqft", "rent_psf",
-                    "outdoor", "floor", "posted_date", "orders_per_day_needed", "url", "contact", "why", "watch_out"])
+                    "outdoor", "floor", "posted_date", "orders_per_day_needed", "estimated_location", "location_confidence", "map", "url", "contact", "why", "watch_out"])
         for i, s in enumerate(rows, 1):
             l = s.listing
             w.writerow([i, s.score, s.tier, l.extra.get("new", False), l.locality, l.title, l.rent, l.area_sqft,
-                        s.rent_psf, l.outdoor, l.floor, l.posted_date, s.orders_per_day_needed, l.url, l.contact,
+                        s.rent_psf, l.outdoor, l.floor, l.posted_date, s.orders_per_day_needed, (l.extra.get("location_guess") or {}).get("likely_location", ""),
+                        (l.extra.get("location_guess") or {}).get("confidence", ""),
+                        (l.extra.get("location_guess") or {}).get("map", ""), l.url, l.contact,
                         "; ".join(s.reasons), "; ".join(s.warnings)])
 
 
@@ -63,7 +65,8 @@ main{max-width:980px;margin:0 auto;padding:24px 16px}h1{font-size:26px;margin:0 
 .tag.match{border-color:var(--good);color:var(--good)}.tag.new{background:var(--accent);color:#fff;border-color:var(--accent)}
 ul{margin:6px 0 0;padding-left:18px}li.w{color:var(--warn)}
 table{border-collapse:collapse;width:100%;font-size:14px}td,th{border-bottom:1px solid var(--line);padding:6px;text-align:left}
-td a{color:var(--accent);margin-right:10px}.wrap{overflow-x:auto}
+td a{color:var(--accent);margin-right:10px}
+.loc{margin:8px 0;padding:8px 10px;border-radius:8px;background:var(--bg);font-size:14px}.loc a{color:var(--accent)}.wrap{overflow-x:auto}
 """
 
 
@@ -95,11 +98,20 @@ def write_html(rows: list[Scored], meta: dict, links: dict, path: Path):
             f"₹{s.rent_psf}/sqft" if s.rent_psf else "", "Outdoor ✓" if l.outdoor else "",
             f"floor: {l.floor}" if l.floor else "", f"posted {l.posted_date}" if l.posted_date else "", f"~{s.orders_per_day_needed} orders/day to cover rent"
             if s.orders_per_day_needed else "", l.source, l.contact] if x]
+        g = l.extra.get("location_guess")
+        loc_html = ""
+        if g:
+            clues = ", ".join((g.get("visible_text") or []) + (g.get("landmarks") or []))[:200]
+            pin = f" · pinned near {e(g['point']['display_name'][:90])}" if g.get("point") else ""
+            loc_html = (f"<p class=loc>📍 <b>Estimated location ({e(g.get('confidence', '?'))} confidence):</b> "
+                        f"{e(g.get('likely_location', ''))}{pin} · <a href='{e(g.get('map', ''))}' target=_blank "
+                        f"rel=noopener>open map</a><br><small>Clues from photos: {e(clues) or 'none'}. "
+                        f"This is an estimate. Confirm with the owner before visiting.</small></p>")
         items = "".join(f"<li>{e(r)}</li>" for r in s.reasons) + "".join(
             f"<li class=w>{e(w)}</li>" for w in s.warnings)
         out.append(f"<div class=card><div class=top><div><p class=title>#{i} · {title}</p>"
                    f"<div class=tags>{''.join(tags)}</div></div>"
-                   f"<div class=score>{s.score}<small>/100</small></div></div><ul>{items}</ul></div>")
+                   f"<div class=score>{s.score}<small>/100</small></div></div>{loc_html}<ul>{items}</ul></div>")
     out.append("<h2>Search these daily on your premium accounts</h2><div class=wrap><table>"
                "<tr><th>Area</th><th>Searches</th></tr>")
     for loc, ls in links.items():

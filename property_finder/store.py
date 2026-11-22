@@ -25,7 +25,9 @@ class Store:
             if old:
                 # keep the original first_seen and fill in any fields the old copy was missing
                 for f, v in l.to_dict().items():
-                    if v not in (None, "", {}) and f not in ("first_seen",):
+                    if f == "extra":
+                        old.extra = {**old.extra, **v}   # keep notified / location_guess
+                    elif v not in (None, "", {}) and f not in ("first_seen",):
                         setattr(old, f, v)
                 old.last_seen = today
             else:

@@ -8,12 +8,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import sys
 from datetime import date
 from pathlib import Path
 
-from . import collectors, links as links_mod, mailbox, notify, report, scoring
+from . import collectors, links as links_mod, locate as locate_mod, mailbox, notify, report, scoring
 from .store import Store
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -46,6 +47,20 @@ def cmd_run(args, cfg) -> int:
         l.extra["new"] = l.key in new_keys or l.first_seen == today
     ranked = scoring.rank(active, cfg)
     top = scoring.shortlist(ranked, cfg)
+
+    if args.locate:
+        todo = [s.listing for s in top if locate_mod.needs_locating(s.listing)][: args.locate_limit]
+        if todo and not os.environ.get("ANTHROPIC_API_KEY"):
+            print("  locate: ANTHROPIC_API_KEY not set, skipping photo analysis")
+        elif todo:
+            print(f"Estimating locations from photos for {len(todo)} listing(s)…")
+            for l in todo:
+                try:
+                    locate_mod.locate(l)
+                except Exception as e:
+                    print(f"  ! could not analyse {l.title[:50]!r}: {e}")
+            ranked = scoring.rank(active, cfg)   # outdoor space seen in photos can change scores
+            top = scoring.shortlist(ranked, cfg)
     matches = sum(1 for s in ranked if s.tier == "match")
 
     need = cfg.get("min_results", 10)
@@ -113,6 +128,8 @@ def main(argv=None) -> int:
     r = sub.add_parser("run")
     r.add_argument("--date", help="override today's date (YYYY-MM-DD)")
     r.add_argument("--offline", action="store_true", help="skip fetching watch URLs")
+    r.add_argument("--locate", action="store_true", help="estimate hidden addresses from listing photos (Claude)")
+    r.add_argument("--locate-limit", type=int, default=10, help="max listings to analyse per run")
     r.add_argument("--notify", action="store_true", help="send email/Telegram alerts for new matches")
     r.add_argument("--strict", action="store_true", help="exit 2 if fewer than min_results listings")
     t = sub.add_parser("add-text")

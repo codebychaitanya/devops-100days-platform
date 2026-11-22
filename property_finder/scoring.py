@@ -78,9 +78,13 @@ def score(listing: Listing, cfg: dict) -> Scored:
     b["rent"] = _rent_points(listing.rent, cfg, s)
     b["area"] = _area_points(listing.area_sqft, cfg, s)
 
+    guess = listing.extra.get("location_guess") or {}
     if listing.outdoor:
         b["outdoor"] = 15
-        s.reasons.append("Has outdoor, sit-out or frontage space")
+        if guess.get("outdoor_space") == "visible":
+            s.reasons.append("Outdoor space visible in photos: " + guess.get("outdoor_space_notes", "")[:120])
+        else:
+            s.reasons.append("Has outdoor, sit-out or frontage space")
     elif listing.outdoor is None:
         b["outdoor"] = 5
     else:

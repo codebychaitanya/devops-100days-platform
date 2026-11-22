@@ -21,11 +21,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt
       - name: Test
         run: python -m unittest discover -s tests
       - name: Collect, score, alert on new matches
         env:
           TZ: Asia/Kolkata
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           ALERT_IMAP_HOST: ${{ secrets.ALERT_IMAP_HOST }}
           ALERT_IMAP_USER: ${{ secrets.ALERT_IMAP_USER }}
           ALERT_IMAP_PASSWORD: ${{ secrets.ALERT_IMAP_PASSWORD }}
@@ -36,7 +39,7 @@ jobs:
           NOTIFY_EMAIL_TO: ${{ secrets.NOTIFY_EMAIL_TO }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python -m property_finder run --notify
+        run: python -m property_finder run --notify --locate
       - name: Save state and report (only when something changed)
         run: |
           git config user.name "property-finder-bot"

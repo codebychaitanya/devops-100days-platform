@@ -19,7 +19,7 @@ import re
 from datetime import date
 from email.utils import parsedate_to_datetime
 
-from .collectors import from_text
+from .collectors import from_text, photo_urls
 from .models import Listing
 
 LISTING_LINK = re.compile(
@@ -57,6 +57,9 @@ def listings_from_email(raw_html: str, cfg: dict, received: str, source: str) ->
         if not re.search(r"sq|rent|₹|rs", text, re.I):
             continue
         l = from_text(text, cfg, source=source, url=url)
+        photos = photo_urls(raw_html[max(0, m.start() - 1500): end])
+        if photos:
+            l.extra["photos"] = photos
         l.posted_date = l.posted_date or received   # the alert email's date is the latest possible post date
         out.append(l)
     return out
