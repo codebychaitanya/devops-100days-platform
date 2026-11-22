@@ -1,0 +1,149 @@
+{
+  "concept": "Chilli Theory - Wok & Kebab",
+  "currency": "INR",
+  "rent": {
+    "min": 20000,
+    "max": 60000,
+    "sweet_spot": [
+      25000,
+      45000
+    ]
+  },
+  "area_sqft": {
+    "min": 500,
+    "ideal": [
+      500,
+      900
+    ],
+    "too_big": 1400
+  },
+  "outdoor_preferred": true,
+  "min_results": 10,
+  "localities": {
+    "primary": {
+      "Narsingi": {
+        "benchmark_rent_psf": 75,
+        "aliases": [
+          "narsinghi",
+          "narsingi",
+          "kokapet road",
+          "puppalguda",
+          "manchirevula"
+        ]
+      },
+      "Miyapur": {
+        "benchmark_rent_psf": 65,
+        "aliases": [
+          "miyapur",
+          "miapur",
+          "madinaguda",
+          "allwyn colony",
+          "deepthisri nagar"
+        ]
+      },
+      "KPHB": {
+        "benchmark_rent_psf": 80,
+        "aliases": [
+          "kphb",
+          "kukatpally housing board",
+          "kphb colony",
+          "jntu",
+          "vasanth nagar"
+        ]
+      },
+      "Kukatpally": {
+        "benchmark_rent_psf": 75,
+        "aliases": [
+          "kukatpally",
+          "kukatpalli",
+          "kukatpally y junction",
+          "balanagar road",
+          "moosapet"
+        ]
+      }
+    },
+    "recommended": {
+      "Nizampet": {
+        "benchmark_rent_psf": 55,
+        "aliases": [
+          "nizampet",
+          "pragathi nagar"
+        ],
+        "why": "Dense student + family housing next to KPHB/JNTU, lower rent per sqft."
+      },
+      "Bachupally": {
+        "benchmark_rent_psf": 45,
+        "aliases": [
+          "bachupally",
+          "bowrampet"
+        ],
+        "why": "Fast-growing gated communities and colleges, few QSRs, cheap rent."
+      },
+      "Chandanagar": {
+        "benchmark_rent_psf": 55,
+        "aliases": [
+          "chandanagar",
+          "chanda nagar",
+          "lingampally",
+          "hafeezpet"
+        ],
+        "why": "Next to Miyapur on the NH-65 corridor, strong evening footfall."
+      },
+      "Kondapur": {
+        "benchmark_rent_psf": 90,
+        "aliases": [
+          "kondapur",
+          "kothaguda",
+          "botanical garden"
+        ],
+        "why": "IT crowd with high ticket sizes; works if rent stays under the cap."
+      },
+      "Manikonda": {
+        "benchmark_rent_psf": 65,
+        "aliases": [
+          "manikonda",
+          "neknampur",
+          "lanco hills",
+          "alkapur"
+        ],
+        "why": "Next to Narsingi, large IT-resident base, popular for dine-out and takeaway."
+      }
+    }
+  },
+  "hotspot_keywords": [
+    "metro",
+    "main road",
+    "junction",
+    "college",
+    "university",
+    "it park",
+    "hitech",
+    "mall",
+    "forum",
+    "nexus",
+    "orr",
+    "bus stop",
+    "jntu",
+    "high street"
+  ],
+  "portals": [
+    "magicbricks",
+    "nobroker",
+    "99acres",
+    "housing"
+  ],
+  "min_posted_date": "2026-11-17",
+  "alerts": {
+    "min_score": 60,
+    "tiers": [
+      "match"
+    ],
+    "skip_if_no_outdoor": true,
+    "portal_senders": [
+      "magicbricks",
+      "nobroker",
+      "99acres",
+      "housing"
+    ]
+  }
+}

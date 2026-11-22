@@ -1,0 +1,50 @@
+name: Property search (24x7)
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"   # every 30 minutes, all day. GitHub may delay scheduled runs by a few minutes.
+  workflow_dispatch: {}      # also runnable by hand from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: property-search
+  cancel-in-progress: false
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Test
+        run: python -m unittest discover -s tests
+      - name: Collect, score, alert on new matches
+        env:
+          TZ: Asia/Kolkata
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ALERT_IMAP_HOST: ${{ secrets.ALERT_IMAP_HOST }}
+          ALERT_IMAP_USER: ${{ secrets.ALERT_IMAP_USER }}
+          ALERT_IMAP_PASSWORD: ${{ secrets.ALERT_IMAP_PASSWORD }}
+          NOTIFY_SMTP_HOST: ${{ secrets.NOTIFY_SMTP_HOST }}
+          NOTIFY_SMTP_PORT: ${{ secrets.NOTIFY_SMTP_PORT }}
+          NOTIFY_SMTP_USER: ${{ secrets.NOTIFY_SMTP_USER }}
+          NOTIFY_SMTP_PASSWORD: ${{ secrets.NOTIFY_SMTP_PASSWORD }}
+          NOTIFY_EMAIL_TO: ${{ secrets.NOTIFY_EMAIL_TO }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -m property_finder run --notify --locate
+      - name: Save state and report (only when something changed)
+        run: |
+          git config user.name "property-finder-bot"
+          git config user.email "property-finder-bot@users.noreply.github.com"
+          git add reports data/listings.json
+          git diff --cached --quiet && exit 0
+          git commit -m "Property search $(TZ=Asia/Kolkata date '+%F %H:%M')"
+          git pull --rebase && git push
